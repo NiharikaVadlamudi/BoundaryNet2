@@ -4,7 +4,7 @@ A stable version of Boundary Net for Indiscapes 2
 * For installation via conda , please use the .yml provided 
    - conda env create --file BoundaryNetStable.yml --python=3.8
 * For installation via pip , please use the following file .
-   - pip install -r bnet.txt
+   - pip install -r BoundaryNet_requirements.txt
 # Codebase Setup 
 # MCNN 
 # AGCN 
