@@ -6,7 +6,7 @@ import torch.nn as nn
 import cv2
 import torch.nn.functional as F
 from scipy.interpolate import splprep, splev
-import Utils.utils
+import utilities.utils
 from skimage.transform import rescale, resize
 from skimage import img_as_bool
 import skimage

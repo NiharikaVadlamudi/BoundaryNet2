@@ -34,7 +34,7 @@ wandb.init(project='NewPalmiraTraning')
 # Model Inputs
 from models.MCNN.newEncoder  import Model
 from skimage.io import imsave
-from Utils import utils
+from utilities import utils
 from losses.fm_maps import compute_edts_forPenalizedLoss
 from datasets.edge_imageprovider_test import *
 

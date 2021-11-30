@@ -16,7 +16,7 @@ import PIL
 import warnings
 warnings.filterwarnings("ignore")
 
-import Utils.utils as utils
+import utilities.utils as utils
 EPS = 1e-7 
 
 def process_info(args):

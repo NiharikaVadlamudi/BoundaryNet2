@@ -5,9 +5,9 @@ import torch
 import os
 import numpy as np
 from scipy.ndimage.morphology import distance_transform_cdt
-from Utils.poly_point_isect import isect_polygon__naive_check
+from utilities.poly_point_isect import isect_polygon__naive_check
 import copy
-import Utils.dpfuncdist as dputils
+import utilities.dpfuncdist as dputils
 import random
 
 

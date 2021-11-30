@@ -25,8 +25,8 @@ warnings.filterwarnings('ignore')
 
 
 # File Imports 
-from Utils import utils
-from Utils import contourization
+from utilities import utils
+from utilities import contourization
 from models.MCNN.newEncoder  import Model
 import datasets.edge_imageprovider_test as image_provider
 from losses.fm_maps import compute_edts_forPenalizedLoss
