@@ -1,7 +1,7 @@
 '''
-Classwise Correction 
-'''
+Reverse CT - Hard to Easy scenario 
 
+'''
 # Generic Libraries
 import os
 import json
@@ -31,22 +31,14 @@ np.set_printoptions(threshold=sys.maxsize)
 warnings.filterwarnings("ignore")
 cv2.setNumThreads(0)
 
-# WandB Login
-wid = 
-WANDB_API_KEY="4169d431880a3dd9883605d90d1fe23a248ea0c5"
-WANDB_ENTITY="amber1121"
-os.environ["WANDB_RESUME"] = "allow"
-os.environ["WANDB_RUN_ID"] = wid
-wandb.init(project="GCN Experiments",id=wid,resume='allow')
-
 classes = ['Hole(Physical)','Hole(Virtual)','Character Line Segment', 'Character Component','Picture','Decorator','Library Marker', 'Boundary Line', 'Physical Degradation']
 
 # File Imports
 from utilities import utils
 from utilities import *
-from datasets.edge_imageprovider import *
-import datasets.edge_imageprovider as image_provider
-from models.combined_model import Model
+from datasets.edge_imageprovider_test import *
+import datasets.edge_imageprovider_test as image_provider
+from models.combined_model_optimised import Model
 from losses.Hausdorff_loss import AveragedHausdorffLoss
 from losses.fm_maps import compute_edts_forPenalizedLoss
 
@@ -64,7 +56,6 @@ if torch.cuda.is_available():
 else:
     print(" NO GPU ALLOCATED , Exiting . ")
     sys.exit()
-
 
 def create_folder(args):
     try : 
@@ -87,7 +78,6 @@ def create_folder(args):
         print('Folder Creation Error , Exiting : {}'.format(ex))
         sys.exit()
 
-
 '''
 We need to add exp dir part to the json , apart from regular 
 resume flag , if weighted_trainloader flag too , weighted_epoch number
@@ -104,7 +94,7 @@ def get_args():
     parser.add_argument('--wid',type=str,default=str(wandb.util.generate_id()))
     # HD weighing related part.
     parser.add_argument('--gamma',type=float,default=0.5)
-    parser.add_argument('--increment',type=float,default=0.5)
+    parser.add_argument('--decrement',type=float,default=0.5)
     args = parser.parse_args()
     parser.add_argument('--vis_file',type=str,default='val_opts_{}.json'.format(args.title))
     args = parser.parse_args()
@@ -135,6 +125,7 @@ def get_data_loaders(opts, DataProvider):
     
     return train_loader, val_loader, label_to_count
 
+
 class Trainer(object):
     def __init__(self, args, opts):
 
@@ -149,21 +140,23 @@ class Trainer(object):
         self.alpha=self.opts['alpha']
         self.beta=self.opts['beta']
         self.gamma=self.args.gamma
-        self.increment=self.args.increment
+        self.decrement=self.args.decrement
         self.number=1
-        self.hd_classwise_global_thresh={}
+        self.hd_global_thresh=self.hd_global_thresh_initial=0.0
         self.hd_classwise={}
         self.trackInstances={}
         self.trackLoss={}
-        self.track_classwise_instances={}
+        self.trackInstClasswise={}
 
-        
+        for cl in classes:
+            self.trackInstClasswise[str(cl)]=0.0
+
+        self.hd_mean=self.hd_std=0.0
         self.global_step = 0
         self.epoch = 0
         self.opts = opts
         self.args=args
         # self.weights=None
-
         
         self.fp_loss_fn = nn.MSELoss()
         self.gcn_loss_sum_train = 0
@@ -212,9 +205,8 @@ class Trainer(object):
             self.resume(args.resume)
         
         # HD Computation 
-        self.load_hd_encoder()
+        self.rev_load_hd_encoder()
 
-    #classes = ['Hole(Physical)','Hole(Virtual)','Character Line Segment', 'Character Component','Picture','Decorator','Library Marker', 'Boundary Line', 'Physical Degradation']
 
     def save_checkpoint(self, epoch):
         save_state = {
@@ -223,28 +215,53 @@ class Trainer(object):
             'gcn_state_dict': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'lr_decay': self.lr_decay.state_dict(),
-            'epoch_loss_prev':self.trackLoss[self.epoch-1],
-            'num_instances':len(self.trackInstances[self.epoch-1]),
-            'threshold_info_HP':self.hd_classwise_global_thresh['Hole(Physical)'],
-            'threshold_info_HV':self.hd_classwise_global_thresh['Hole(Virtual)'],
-            'threshold_info_CLS':self.hd_classwise_global_thresh['Character Line Segment'],
-            'threshold_info_CC':self.hd_classwise_global_thresh['Character Component'],
-            'threshold_info_P':self.hd_classwise_global_thresh['Picture'],
-            'threshold_info_D':self.hd_classwise_global_thresh['Decorator'],
-            'threshold_info_LM':self.hd_classwise_global_thresh['Library Marker'],
-            'threshold_info_BL':self.hd_classwise_global_thresh['Boundary Line'],
-            'threshold_info_PD':self.hd_classwise_global_thresh['Physical Degradation']
+            'prev_train_loss':self.trackLoss[self.epoch-1],
+            'hd_threshold':self.hd_global_thresh
         }
-        
         save_name = os.path.join(self.args.expdir, 'checkpoints', 'epoch_encoder_%d_step%d.pth' \
                                  % (epoch, self.global_step))
         torch.save(save_state, save_name)
         print('Saved model @ Epoch : {}'.format(self.epoch))
+    
+    def rev_load_hd_encoder(self):
+        countHD=0
+        # Read JSON file 
+        with open(self.args.hd_weight_file,'r') as file:
+            hd_data=json.load(file)
+        instance_list=[]
+        self.instance_dict={}
+        for i in hd_data: 
+            key=list(i.keys())[0]
+            val=list(i.values())[0]
+            hd=val['hd']
+            hd95=val['hd95']
+            label=val['label']
+            # Storing the value 
+            self.instance_dict[key]={'hd':hd,'label':label}
+            instance_list.append(hd)
+            countHD+=hd
+        # self.hd_global_thresh_initial=countHD/len(list(self.instance_dict.keys()))
+        instance_arr=np.asarray(instance_list,dtype=np.uint8)
+        print('Length of the list : ',len(instance_list))
+        instance_arr=np.asarray(instance_list)
+        print('Max : ',np.max(instance_arr))
+        print('Min :',np.min(instance_arr))
+        print('Mean : ',np.mean(instance_arr))
+        print('Variance : ',np.var(instance_arr))
+        print('Std Deviation : ',np.std(instance_arr))
+        print('Median : ',np.median(instance_arr))   
+        self.hd_mean=np.mean(instance_arr)
+        self.hd_max=np.max(instance_arr)
+        self.hd_std=np.std(instance_arr)
+        self.hd_var=np.var(instance_arr)
+        self.hd_global_thresh_initial=self.hd_max
+    
 
     def resume(self, path):
         print(' GCN Training Resumed .. !')
         self.model_path=path
         save_state = torch.load(self.model_path)
+        #new_state=self.modified_state_dict(save_state)
         try :
             self.model.load_state_dict(save_state['gcn_state_dict'])
             print('Model loaded ..... GCN  ')
@@ -253,74 +270,10 @@ class Trainer(object):
         self.global_step = save_state['global_step']
         self.epoch = save_state['epoch']
         self.optimizer.load_state_dict(save_state['optimizer'])
-        self.trackLoss[self.epoch-1]=save_state['epoch_loss_prev']
-       
-        self.hd_classwise_global_thresh={} 
-        self.hd_classwise_global_thresh['Hole(Physical)']=save_state['threshold_info_HP']
-        self.hd_classwise_global_thresh['Hole(Virtual)']=save_state['threshold_info_HV']
-        self.hd_classwise_global_thresh['Character Line Segment']= save_state['threshold_info_CLS']
-        self.hd_classwise_global_thresh['Character Component']=save_state['threshold_info_CC']
-        self.hd_classwise_global_thresh['Picture']=save_state['threshold_info_P']
-        self.hd_classwise_global_thresh['Decorator']=save_state['threshold_info_D']
-        self.hd_classwise_global_thresh['Library Marker']=save_state['threshold_info_LM']
-        self.hd_classwise_global_thresh['Boundary Line']=save_state['threshold_info_BL']
-        self.hd_classwise_global_thresh['Physical Degradation']=save_state['threshold_info_PD']
+        self.trackLoss[self.epoch-1]=save_state['prev_train_loss']
+        self.hd_global_thresh=save_state['hd_threshold']
 
-        
-       
         print('Model reloaded to resume from Epoch %d, Global Step %d from model at %s' % (self.epoch, self.global_step, path))
-    
-    def load_hd_encoder(self):
-        # Read JSON file 
-        with open(self.args.hd_weight_file,'r') as file:
-            hd_data=json.load(file)
-        
-        self.classwise_hd_initial={}
-        self.classwise_hd_storage={}
-        self.instance_dict={}
-        countLen=0
-        # Create a dictionary with all classes 
-     
-        for cl in classes:
-            self.classwise_hd_initial[cl]={'len':0,'hd':0.0,'hd95':0.0,'std':0.0,'max':0.0,'min':0.0}
-            self.classwise_hd_storage[cl]=[]
-            self.track_classwise_instances[cl]=0
-
-        # Run through all the instances in the json file , match the class and sum the classwise threshold 
-        # embedd self.number into it . 
-       
-        for i in hd_data: 
-            key=list(i.keys())[0]
-            val=list(i.values())[0]
-            hd=val['hd']
-            label=val['label']
-
-            # Storing the value 
-            
-            self.instance_dict[key]={'hd':hd,'label':label}
-
-            if(label in classes):
-                self.classwise_hd_initial[label]['len']+=1
-                self.classwise_hd_initial[label]['hd']+=hd
-                self.classwise_hd_storage[label].append(hd)
-                
-    
-       
-        for key in classes:
-            # self.classwise_hd_initial[key]['hd']/=int(self.classwise_hd_initial[key]['len'])
-            hd_arr=np.asarray(self.classwise_hd_storage[key])
-            self.classwise_hd_initial[key]['hd']=np.mean(hd_arr)
-            print('Class : {} , HD Threshold : {}'.format( key,self.classwise_hd_initial[key]['hd']))
-            self.classwise_hd_initial[key]['std']=np.std(hd_arr)
-            self.classwise_hd_initial[key]['max']=np.max(hd_arr)
-            self.classwise_hd_initial[key]['min']=np.min(hd_arr)
-
-        self.hd_classwise_global_thresh=copy.deepcopy(self.classwise_hd_initial)
-        # Intial threshold 
-        for key in self.hd_classwise_global_thresh.keys():
-            self.hd_classwise_global_thresh[key]['hd']=int(self.gamma*(self.hd_classwise_global_thresh[key]['hd']))            
-
-
 
     # Non-Weighted Traning .
     def loop(self):
@@ -329,6 +282,8 @@ class Trainer(object):
             self.lr_decay.step()
             wandb.log({'current_lr':self.optimizer.param_groups[0]['lr'],'epoch':self.epoch})
             self.train(epoch)
+            if(self.epoch>0):
+                self.save_checkpoint(self.epoch)
             print('Epoch : {} ---- Instances Length : {} '.format(self.epoch,len(self.train_loader)))
 
     def train(self,epoch):
@@ -339,27 +294,35 @@ class Trainer(object):
         poly_losses = []
         # class_losses = []
         accum = defaultdict(float)
+        total_hd_enc=0.0
+        
         countTrue=countFalse=0
+        self.epoch_instances=0
 
         self.trackInstances[self.epoch]=[]
         self.trackLoss[self.epoch]=0.0
 
-        if(self.epoch>0):
+        if(self.epoch>5):
             self.validate()
-            self.save_checkpoint(epoch)
+
+        if(self.epoch==0):
+            print('Maximum HD : {}'.format(self.hd_global_thresh_initial))
+            # self.hd_global_thresh=int((self.gamma)*self.hd_global_thresh_initial-7*self.hd_std)
+            self.hd_global_thresh=self.gamma 
+            print('Initial Threshold : {}'.format(self.hd_global_thresh))
 
         for step, data in enumerate(self.train_loader):
-            print('GCN Train Epoch --- {} Step --- {} '.format(self.epoch,self.global_step))
-
+            print('GCN Train Epoch --- {} Step --- {} Instances Over--{} '.format(self.epoch,self.global_step,self.epoch_instances))
             id=data['id'] 
             class_label=data["cm_label"][0]
-            # self.hd_classwise_global_thresh[key]['hd']=int(self.gamma*(self.hd_classwise_global_thresh[key]['hd']))            
-
-            hd_thresh=int(self.hd_classwise_global_thresh[str(class_label)]['hd'])
-            hd_enc=int(self.instance_dict[str(id[0])]['hd'])
-            print('ID : {} Label : {}  HD_Threshold :{} HD_Enc: {}'.format(str(id[0]),class_label,hd_thresh,hd_enc))
-    
-            if(hd_enc<=hd_thresh):
+            try:
+                hd_enc=int(self.instance_dict[str(id[0])]['hd'])
+            except Exception as exp :
+                print('HD_enc & threshold computing error , {}'.format(exp))
+                continue
+            
+            
+            if(hd_enc>self.hd_global_thresh):
                 try :
                     img = data['img']
                     img = torch.cat(img)
@@ -467,21 +430,22 @@ class Trainer(object):
                         loss_v = han_loss
                     else:
                         loss_v = han_loss + 200*poly_loss1
-
                     
                     loss_sum = han_loss
                     self.gcn_loss_sum_train = han_loss
                     poly_loss_sum = poly_loss1
                     # class_loss_sum = class_loss1
 
+
                     self.optimizer.zero_grad()
 
                     # Backpropagation of loss 
                     loss_v.backward()
+                    self.epoch_instances+=1
                     # Store in a dictionary
                     self.trackInstances[self.epoch].append(id)
                     self.trackLoss[self.epoch]+=loss_v
-                    self.track_classwise_instances[class_label]+=1
+                    self.trackInstClasswise[class_label]+=1
 
                     if 'grad_clip' in self.opts.keys():
                         nn.utils.clip_grad_norm_(self.model.parameters(), self.opts['grad_clip'])
@@ -515,7 +479,8 @@ class Trainer(object):
                     pred_mask = mask.astype(np.uint8)
                     pred_mask = (pred_mask*255).astype(np.uint8) 
 
-                
+            
+
                     if(self.gcn_loss_sum_train>1000):
                         print('Heavy Loss : Faulty Instances --- > {} {} {} {} '.format(self.epoch,step,self.gcn_loss_sum_train,data['id']))
                         continue
@@ -555,7 +520,6 @@ class Trainer(object):
                     continue
 
             else: 
-                countFalse+=1
                 continue
 
             self.global_step += 1
@@ -565,26 +529,36 @@ class Trainer(object):
         for i in range(len(losses)):
             avg_epoch_loss += losses[i]
 
-        avg_epoch_loss = avg_epoch_loss / len(losses)
-        self.trackLoss[self.epoch]=self.trackLoss[self.epoch]/len(losses)
+        avg_epoch_loss = avg_epoch_loss/self.epoch_instances
+        # / len(losses)
+        self.trackLoss[self.epoch]=self.trackLoss[self.epoch]/self.epoch_instances
+        #/len(losses)
 
         if(self.epoch>=2):
             # Compute the HD threshold for next loop ; if loss platues.
             diff=(self.trackLoss[self.epoch-1]-self.trackLoss[self.epoch])
             diff=np.asscalar(diff)
-            wandb.log({'loss_diff':int(diff),'epoch':self.epoch})
-            if(abs(diff)<5.0):
-                for key in self.hd_classwise_global_thresh.keys():
-                    self.hd_classwise_global_thresh[key]['hd']+=(self.increment)*int(self.classwise_hd_initial[key]['std'])
+            #wandb.log({'loss_diff':diff,'epoch':self.epoch})
+            if(abs(diff)<=5.0):
+                self.number+=1
+                self.hd_global_thresh-=self.decrement*self.hd_std
+                if(self.hd_global_thresh<0.0):
+                    print('HD going to negative .. stop')
+                    self.validate()
+                    self.save_checkpoint(self.epoch)
+                    sys.exit()
+            
+        self.gcn_loss_sum_train = avg_epoch_loss
 
-        self.gcn_loss_sum_train = avg_epoch_loss   
         # WandB Logging
+        wandb.log({'hd_threshold':self.hd_global_thresh,'epoch':self.epoch})
         wandb.log({'train_gcn_avg_epoch_loss':self.gcn_loss_sum_train, 'epoch': self.epoch})
         wandb.log({'track_instances ':len(self.trackInstances[self.epoch]),'epoch':self.epoch})
+    
+        # Track instances classwise 
+        for key in self.trackInstClasswise.keys():
+            wandb.log({'{}_insts'.format(str(key)):int(self.trackInstClasswise[key]),'epoch':self.epoch})
 
-        for key in classes:
-            wandb.log({'{}_hd_threshold'.format(str(key)):self.hd_classwise_global_thresh[key]['hd'],'epoch':self.epoch})
-            
         print("Average Epoch %d loss is : %f" % (epoch, avg_epoch_loss))
         print('Statistics :   Epoch --- {} , Invalid Samples --- {} , Valid Samples --- {}'.format(self.epoch,countFalse,countTrue))
         torch.cuda.empty_cache()
@@ -616,6 +590,8 @@ class Trainer(object):
         testcount = {}
         testarr=[]
 
+        self.epoch_instances=0
+
         for clss in classes: 
             final_ious[clss] = 0.0
             final_acc[clss] = 0.0
@@ -627,8 +603,10 @@ class Trainer(object):
             for step, data in enumerate(self.val_loader):
 
                 try : 
+
                     print('Validation Step : {} ,Current Epoch : {} '.format(step,self.epoch))
-      
+
+                    # try :      
                     id=str(data['id'][0])      
                     img = data['img']
                     img = torch.cat(img)
@@ -822,6 +800,8 @@ class Trainer(object):
 
                     testarr.append(class_lab)
 
+
+
                     han_loss = self.hausdorff_loss(pred_cps[0,:,:].float(), dp[0,:,:].float())
                     loss_sum = han_loss
                     self.gcn_loss_sum_val = han_loss
@@ -831,6 +811,7 @@ class Trainer(object):
                     if(self.epoch%10==0 and self.epoch>0):
                         tool_dict.append({"id":str(id) ,"poly": (dp101[0].cpu().numpy()).tolist(), "encoder_output":encoder_output.tolist(), "gcn_output":pred.tolist() ,"image_url":data["image_url"][0], "bbox":bbox[0].tolist(), "label":data["cm_label"][0], "iou":iou1, "hd":hd1,"hd95":hd951})
 
+                    self.epoch_instances+=1
                     loss = loss_sum
                     losses.append(loss)
                     gcn_losses.append(self.gcn_loss_sum_val)
@@ -855,7 +836,8 @@ class Trainer(object):
         # avg_class_loss = 0.0
 
 
-        for i in range(len(losses)):
+        # for i in range(len(losses)):
+        for i in range(self.epoch_instances):
             avg_epoch_loss += losses[i]
             avg_gcn_loss += gcn_losses[i]
             avg_poly_loss += poly_losses[i]
@@ -912,15 +894,24 @@ class Trainer(object):
         print("Class-wise HD95: ",final_hd95)
         print("Class-wise HD95 average: ",np.mean(np.array(list(final_hd95.values())).astype(np.float)))
         print('--------------------------------------')
+        
+        # self.epoch_instances=0
+        # avg_epoch_loss = avg_epoch_loss / len(losses)
+        # avg_gcn_loss = avg_gcn_loss / len(losses)
+        # avg_poly_loss = avg_poly_loss / len(losses)
 
-        avg_epoch_loss = avg_epoch_loss / len(losses)
-        avg_gcn_loss = avg_gcn_loss / len(losses)
-        avg_poly_loss = avg_poly_loss / len(losses)
+        avg_epoch_loss = avg_epoch_loss /self.epoch_instances
+        avg_gcn_loss = avg_gcn_loss /self.epoch_instances
+        avg_poly_loss = avg_poly_loss /self.epoch_instances
+
         # avg_class_loss = avg_class_loss / len(losses)
 
         self.gcn_loss_sum_val = avg_gcn_loss
-        avg_iou = avg_iou / len(losses)
-        avg_acc = avg_acc / len(losses)
+        # avg_iou = avg_iou / len(losses)
+        # avg_acc = avg_acc / len(losses)
+
+        avg_iou = avg_iou /self.epoch_instances
+        avg_acc = avg_acc /self.epoch_instances
 
         print("Avg. IOU", avg_iou)
         print("Avg. Accuracy", avg_acc)
@@ -950,4 +941,7 @@ if __name__ == '__main__':
     trainer.loop()
 
 
-          
+           
+
+
+
