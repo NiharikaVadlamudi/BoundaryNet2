@@ -1,0 +1,101 @@
+{
+    "mode": "train",
+    "input_size":3,
+    "lr": 1e-2,
+    "lr_decay":8,
+    "weight_decay": 1e-3,
+    "max_epochs":35,
+    "grad_clip": 40,
+    "max_poly_len": 100,
+    "print_freq": 100,
+    "val_freq":12500,
+    "dec_per" :0.05,
+    "class_loss_weight":1,
+    "dataset": {
+        "train" : {
+            "data_dir": "datasets/data_splits_indiscapes2/",
+            "batch_size": 1,
+            "num_workers":2,
+            "skip_multicomponent":true,  
+            "dec_per":0.05,
+            "min_poly_len": 10,
+            "max_poly_len": 100,
+            "min_area": 100,
+            "sub_th": 0,
+            "class_filter": ["Hole(Physical)",
+                "Hole(Virtual)",
+                "Character Line Segment",
+                "Character Component",
+                "Picture",
+                "Decorator",
+                "Library Marker",
+                "Boundary Line",
+                "Physical Degradation"
+            ]
+        },
+        "test" : {
+            "data_dir": "datasets/data_splits_indiscapes2/",
+            "batch_size": 1,
+            "num_workers":2,
+            "min_poly_len": 10,
+            "skip_multicomponent":true,
+            "max_poly_len": 100,
+            "min_area": 100,
+            "sub_th": 0,
+            "class_filter": [
+                "Hole(Physical)",
+                "Hole(Virtual)",
+                "Character Line Segment",
+                "Character Component",
+                "Picture",
+                "Decorator",
+                "Library Marker",
+                "Boundary Line",
+                "Physical Degradation"]
+        },
+        "val" : {
+            "data_dir": "datasets/data_splits_indiscapes2/",
+            "batch_size": 1,
+            "num_workers":2,
+            "skip_multicomponent":true,  
+            "dec_per":0.05,
+            "min_poly_len": 10,
+            "max_poly_len": 100,
+            "min_area": 100,
+            "sub_th": 0,
+            "class_filter": ["Hole(Physical)",
+                "Hole(Virtual)",
+                "Character Line Segment",
+                "Character Component",
+                "Picture",
+                "Decorator",
+                "Library Marker",
+                "Boundary Line",
+                "Physical Degradation"
+            ]
+        },
+        "train_val" : {
+            "data_dir": "datasets/data_splits_indiscapes2/",
+            "batch_size": 1,
+            "num_workers": 1,
+            "min_poly_len": 10,
+            "skip_multicomponent":true,
+            "max_poly_len": 100,
+            "min_area": 100,
+            "sub_th": 0,
+            "class_filter": [
+                "Hole(Physical)",
+                "Hole(Virtual)",
+                "Character Line Segment",
+                "Character Component",
+                "Picture",
+                "Decorator",
+                "Library Marker",
+                "Boundary Line",
+                "Physical Degradation"
+            ]
+        }
+    }
+}
+
+

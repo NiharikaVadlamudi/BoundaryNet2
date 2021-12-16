@@ -1,0 +1,38 @@
+{
+    "mode": "test",
+    "input_size":3,
+    "lr": 0.001,
+    "lr_decay": 7,
+    "weight_decay": 1e-5,
+    "max_epochs": 110,
+    "grad_clip": 40,
+    "max_poly_len": 100,
+    "print_freq": 1000,
+    "val_freq":12000,
+    "dec_per" :0.05,
+    "dataset": {
+        "test" : {
+            "data_dir": "datasets/data_splits_error/",
+            "batch_size": 1,
+            "num_workers":2,
+            "min_poly_len": 10,
+            "skip_multicomponent":true,
+            "max_poly_len": 100,
+            "min_area": 100,
+            "sub_th": 0,
+            "class_filter": [
+                "Hole(Physical)",
+                "Hole(Virtual)",
+                "Character Line Segment",
+                "Character Component",
+                "Picture",
+                "Decorator",
+                "Library Marker",
+                "Boundary Line",
+                "Physical Degradation"
+            ]
+        }
+    }
+}
+
+
