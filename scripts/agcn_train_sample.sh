@@ -9,7 +9,7 @@
 #SBATCH --mail-user=niharika.vadlamudi@research.iiit.ac.in
 #SBATCH --mail-type=END
 
-python3 agcn.py --mode 'train' --title "AGCN Training" --exp 'experiments/agcn_settings.json' --expdir 'AGCN/train/' --mcnn_weights 'weights/mcnn.pth' --training_type 'normal' 
+python3 agcn.py --mode 'train' --title "AGCN Training" --exp 'experiments/agcn_config.json' --expdir 'AGCN/train/' --mcnn_weights 'weights/mcnn.pth' --training_type 'normal' 
 
 echo "Finished [EXP3] Performance Based GCN Training "
 

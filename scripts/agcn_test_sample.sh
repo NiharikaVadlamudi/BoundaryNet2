@@ -9,5 +9,5 @@
 #SBATCH --mail-user=niharika.vadlamudi@research.iiit.ac.in
 #SBATCH --mail-type=END
 
-python3 agcn.py --mode 'test'  --expdir "AGCN/test/" --exp "experiments/gcn_settings.json" --optfile "gcn_polygon_results.json" --metricfile "gcn_metrics.csv" --checkpoint <NUM>  --vis False 
+python3 agcn.py --mode 'test'  --expdir "AGCN/test/" --exp "experiments/gcn_config.json" --optfile "gcn_polygon_results.json" --metricfile "gcn_metrics.csv" --checkpoint <NUM>  --vis False 
 

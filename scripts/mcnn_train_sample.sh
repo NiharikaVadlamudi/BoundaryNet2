@@ -9,6 +9,6 @@
 #SBATCH --mail-user=niharika.vadlamudi@research.iiit.ac.in
 #SBATCH --mail-type=END
 
-python3 mcnn.py --title 'MCNN Training'  --mode 'train' -exp 'experiments/mcnn_settings.json' --expdir 'MCNN/train/' --training_type 'normal' --freeze_hd True --freeze_clf True --freeze_seg_branch False 
+python3 mcnn.py --title 'MCNN Training'  --mode 'train' -exp 'experiments/mcnn_config.json' --expdir 'MCNN/train/' --training_type 'normal' --freeze_hd True --freeze_clf True --freeze_seg_branch False 
 
 

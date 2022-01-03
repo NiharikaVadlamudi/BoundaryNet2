@@ -10,5 +10,5 @@
 #SBATCH --mail-user=niharika.vadlamudi@research.iiit.ac.in
 #SBATCH --mail-type=END
 
-python3 mcnn.py  --mode 'test' --exp 'experiments/mcnn_settings.json' --expdir 'MCNN/test/'  --modelfile 'weights/mcnn.pth' --optfile 'mcnn_polygon_file.json' --metricfile 'mcnn_results.csv' 
+python3 mcnn.py  --mode 'test' --exp 'experiments/mcnn_config.json' --expdir 'MCNN/test/'  --modelfile 'weights/mcnn.pth' --optfile 'mcnn_polygon_file.json' --metricfile 'mcnn_results.csv' 
                                                       
