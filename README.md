@@ -1,8 +1,8 @@
 # BoundaryNet2
-An improved version of BoundaryNet designed for Indiscapes 2 dataset .
+An improved version of BoundaryNet designed for Indiscapes 2 dataset.
 
 ## Installation
-If package manager [pip](https://pip.pypa.io/en/stable/) is preferred , then please use the following commands : 
+If package manager [pip](https://pip.pypa.io/en/stable/) is preferred , then please use the following commands: 
 
 ```bash
 pip install -r requirements.txt
@@ -29,15 +29,15 @@ conda activate bnet
 
 ## Usage
 
-To either train/test/validate place the appropriate flag in the command . Please opt for -h (help) for detailed explaination of the arguments .Make sure the experiment JSON & weight files are placed in their respective folders . 
+To either train/test/validate place the appropriate flag in the command . Please opt for -h (help) for detailed explaination of the arguments .Make sure the experiment JSON & weight files are placed in their respective folders. 
 
 ### MCNN : 
 ```bash
-python3 mcnn.py --mode 'train' --expdir 'mcnn/' --exp 'mcnn_config.json' --training-type 'normal' 
+python3 core/MCNN/mcnnTrain.py --mode 'train' --expdir 'mcnn/' --exp 'mcnn_config.json' --training-type 'normal' 
 ```
 ### AGCN : 
 ```bash
-python3 agcn.py --mode 'train' --expdir 'agcn/' --exp 'agcn_config.json' --training-type 'normal'  --model_weights 'mcnn_stable.pth'
+python3 core/AGCN/gcnTrain.py --mode 'train' --expdir 'agcn/' --exp 'agcn_config.json' --training-type 'normal'  --model_weights 'mcnn_stable.pth'
 ```
 
 **Before these operations, ensure the folder `datasets` is structured as follows : **
